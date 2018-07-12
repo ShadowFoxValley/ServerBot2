@@ -20,22 +20,32 @@ type config struct{
 
 var(
 	configuration config
+	userStatus = make(map[string]string)
+	quaue = make(map[string]int)
 )
 
 func main() {
-	
+
 	var database, err = sql.Open("mysql", "discord:truePass@tcp(localhost:3306)/discord")
 	if err != nil{log.Print(err.Error())}
 	configuration.database = database
 
+	//Load configuration
 	var res, QueryError = database.Query("SELECT prefix, token FROM settings")
 	if QueryError!=nil{log.Print(QueryError.Error())}
-
-
 	for res.Next(){
 		res.Scan(&configuration.Prefix, &configuration.TokenDB)
 	}
 
+	//Load users status
+	var userSql, _ = database.Query("SELECT discord_id, status FROM users")
+	for userSql.Next(){
+		var tmpId, tmpStatus string
+		userSql.Scan(&tmpId, &tmpStatus)
+		userStatus[tmpId] = tmpStatus
+	}
+
+	//Start discordbot
 	bot, err := discordgo.New("Bot " + configuration.TokenDB)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
@@ -62,8 +72,20 @@ func main() {
 	database.Close()
 }
 
+
 // Перехват нового сообщения
 func messageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
+
+	if len(message.Embeds) != 0 {
+		var messageEmbedData = *message.Embeds[0]
+		if quaue[messageEmbedData.Description] > 0 {
+			for i := 0; i < quaue[messageEmbedData.Description]; i++{
+				session.MessageReactionAdd(message.ChannelID, message.ID, empojiPoll[i])
+			}
+			quaue[messageEmbedData.Description] = 0
+		}
+	}
+
 	if message.Author.ID == session.State.User.ID{
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 	"log"
 	"fmt"
+	"github.com/thanhpk/randstr"
 )
 
 type CommandData struct {
@@ -18,6 +19,22 @@ type CommandData struct {
 	prefix  string
 	guild *discordgo.Guild
 }
+
+
+var (
+	empojiPoll = []string{
+		"0⃣",
+		"1⃣",
+		"2⃣",
+		"3⃣",
+		"4⃣",
+		"5⃣",
+		"6⃣",
+		"7⃣",
+		"8⃣",
+		"9⃣",
+	}
+)
 
 func (data CommandData) LoadData(session *discordgo.Session, message *discordgo.MessageCreate){
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -100,7 +117,7 @@ func (data CommandData) top(){
 	data.session.ChannelMessageSendEmbed(data.channel, embed)
 }
 
-func (data CommandData) coins(){
+func (data CommandData) stats(){
 	var res, QueryError = configuration.database.Query("SELECT discord_id, points FROM users ORDER BY points DESC")
 	if QueryError!=nil{log.Print(QueryError.Error())}
 
@@ -113,7 +130,7 @@ func (data CommandData) coins(){
 		if id == data.author.ID{break}
 		counter+=1
 	}
-
+	log.Print("Вызван статус")
 	var fields = []*discordgo.MessageEmbedField{
 		{
 			"Баланс",
@@ -124,6 +141,11 @@ func (data CommandData) coins(){
 			"Место",
 			fmt.Sprintf("%d место среди пользователей", counter),
 			true,
+		},
+		{
+			"Статус",
+			userStatus[data.author.ID],
+			false,
 		},
 	}
 
@@ -157,11 +179,118 @@ func (data CommandData) throw()  {
 	var targetEmoji = staticEmoji[rand.Intn(len(staticEmoji))]
 	var emojiString = fmt.Sprintf("<:%s:%s>", targetEmoji.Name, targetEmoji.ID)
 
-	data.session.ChannelMessageSend(data.channel, fmt.Sprintf("**%s** threw %s at **%s**", authorNick, emojiString, targetNick))
+	var messageText = fmt.Sprintf("**%s** threw %s at **%s**", authorNick, emojiString, targetNick)
+
+	if strings.Contains(messageText, "@everyone") || strings.Contains(messageText, "@here"){
+		return
+	}
+
+	data.session.ChannelMessageSend(data.channel, messageText)
+}
+
+func checkAddInfo(data string) (*discordgo.MessageEmbedField, bool, int){
+	var messageData = strings.Split(data, "\n")
+	var counterAddInfo = strings.Split(messageData[0], " ")
+	var questions = messageData[1:]
+
+	if len(counterAddInfo) == 2{
+
+		if separator, err := strconv.Atoi(counterAddInfo[1]); err == nil {
+			//fmt.Printf("%q looks like a number.\n", v)
+			if separator > len(questions) {
+				return &discordgo.MessageEmbedField{}, false, len(questions)
+			}
+			var additionalInformation = &discordgo.MessageEmbedField{
+				"Информация",
+				strings.Join(questions[separator:], "\n"),
+				false,
+			}
+			return additionalInformation, true, separator
+		}
+
+	}
+	return &discordgo.MessageEmbedField{}, false, len(questions)
+}
+
+func (data CommandData) poll() {
+
+	// FIRST CHECK AND INIT ZONE
+	if strings.Contains(data.message.Content, "@everyone") || strings.Contains(data.message.Content, "@here") {
+		return
+	}
+	var messageData = strings.Split(data.message.Content, "\n")
+	var questions = messageData[1:]
+	var fields []*discordgo.MessageEmbedField
+	var variants = ""
+	var pollId = randstr.RandomString(5)
+
+	//BALANCE CHECK
+	points, err := configuration.database.Query("SELECT points FROM users WHERE discord_id=?", data.message.Author.ID)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	var userPoints int
+	points.Next()
+	points.Scan(&userPoints)
+	if userPoints < 50 {
+		data.session.ChannelMessageSend(data.channel, "Cначала денег накопи")
+		return
+	} else {
+		configuration.database.Query("UPDATE users SET points = `points`-50 WHERE discord_id=?", data.message.Author.ID)
+	}
+
+	if additionalInfo, success, separator := checkAddInfo(data.message.Content); success == true {
+		for i:=range questions{
+			if i == separator {
+				break
+			}
+			variants += fmt.Sprintf("%d) %s\n", i, questions[i])
+		}
+		if separator > 10 {
+			data.session.ChannelMessageSend(data.channel, "``k3rn3l_p4n1c: questions overflow``")
+			return
+		}
+
+		fields = append(fields, additionalInfo)
+		fields = append(fields, &discordgo.MessageEmbedField{
+			"Варианты",
+			variants,
+			false,
+		})
+		quaue[pollId] = separator
+	} else {
+
+		for i:=range questions{
+			variants += fmt.Sprintf("%d) %s\n", i, questions[i])
+		}
+		if len(questions) > 10 {
+			data.session.ChannelMessageSend(data.channel, "``k3rn3l_p4n1c: questions overflow``")
+			return
+		}
+
+		fields = append(fields, &discordgo.MessageEmbedField{
+			"Варианты",
+			variants,
+			false,
+		})
+		quaue[pollId] = separator
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
+		Color: 0x00ff00,
+		Fields: fields,
+		Description:pollId,
+	}
+	data.session.ChannelMessageSendEmbed(data.channel, embed)
+	data.session.ChannelMessageDelete(data.message.ChannelID, data.message.ID)
 }
 
 func (data CommandData) checkCommand(){
 	var start = strings.Split(data.message.Content, " ")[0]
+	if strings.Contains(start, "\n") {
+		start = strings.Split(data.message.Content, "\n")[0]
+	}
 	switch start {
 	case data.prefix+"roll":
 		data.roll()
@@ -169,11 +298,14 @@ func (data CommandData) checkCommand(){
 	case data.prefix+"top":
 		data.top()
 		break
-	case data.prefix+"coins":
-		data.coins()
+	case data.prefix+"stats":
+		data.stats()
 		break
 	case data.prefix+"throw":
 		data.throw()
+		break
+	case data.prefix+"poll":
+		data.poll()
 		break
 	}
 }
