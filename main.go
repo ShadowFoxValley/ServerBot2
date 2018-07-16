@@ -36,7 +36,7 @@ func main() {
 	for res.Next(){
 		res.Scan(&configuration.Prefix, &configuration.TokenDB)
 	}
-
+	//configuration.Prefix = "sudo "
 	//Load users status
 	var userSql, _ = database.Query("SELECT discord_id, status FROM users")
 	for userSql.Next(){

@@ -9,6 +9,11 @@ import (
 	"log"
 	"fmt"
 	"github.com/thanhpk/randstr"
+	"github.com/fogleman/gg"
+	"github.com/disintegration/imaging"
+	"image/color"
+	"image"
+	"os"
 )
 
 type CommandData struct {
@@ -34,6 +39,12 @@ var (
 		"8⃣",
 		"9⃣",
 	}
+
+	srcImage, _ = gg.LoadImage("spank.jpg")
+)
+
+const (
+	imageSize = 400
 )
 
 func (data CommandData) LoadData(session *discordgo.Session, message *discordgo.MessageCreate){
@@ -130,7 +141,7 @@ func (data CommandData) stats(){
 		if id == data.author.ID{break}
 		counter+=1
 	}
-	log.Print("Вызван статус")
+	//log.Print("Вызван статус")
 	var fields = []*discordgo.MessageEmbedField{
 		{
 			"Баланс",
@@ -286,6 +297,83 @@ func (data CommandData) poll() {
 	data.session.ChannelMessageDelete(data.message.ChannelID, data.message.ID)
 }
 
+func (data CommandData) help(){
+	var fields = []*discordgo.MessageEmbedField{
+		{
+			"Info",
+			fmt.Sprintf("**%[1]shelp** - получить информацию о командах\n**%[1]sstats** - информация об аккаунте\n**%[1]stop** - топ пользователей\n ", data.prefix),
+			true,
+		},
+		{
+			"Misc",
+			fmt.Sprintf("**%[1]sroll** - u see me rollin\n ", data.prefix),
+			true,
+		},
+		{
+			"Fun",
+			fmt.Sprintf("**%[1]sspank** - :slap: :slap: :slap:\n ", data.prefix),
+			true,
+		},
+		{
+			"Tools",
+			fmt.Sprintf("**%[1]spoll** - создать опрос\n ", data.prefix),
+			true,
+		},
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
+		Color: 0x00ff00,
+		Fields: fields,
+	}
+	data.session.ChannelMessageSendEmbed(data.channel, embed)
+}
+
+func (data CommandData) spank(){
+	var res, _ = configuration.database.Query("SELECT discord_id, points FROM users ORDER BY points DESC")
+
+	var points int
+	var id string
+	var counter = 1
+	for res.Next(){
+		res.Scan(&id, &points)
+		if id == data.author.ID{break}
+		counter+=1
+	}
+	if counter > 30 {
+		data.session.ChannelMessageSend(data.channel, fmt.Sprintf("Только топ-30 могут использовать spank. Проверить место - **%sstats**", data.prefix))
+		return
+	}
+
+	var realTarget *discordgo.User
+	if len(data.message.Mentions) == 0 {
+		data.session.ChannelMessageSend(data.channel, "Тебе нужно выбрать кого-нибудь")
+		return
+	} else {
+		realTarget = data.message.Mentions[0]
+	}
+
+	var tmpName = randstr.RandomString(7) + ".jpg"
+
+	var spanked, _ = data.session.UserAvatarDecode(realTarget)
+	var spanker, _ = data.session.UserAvatarDecode(data.author)
+	spanker = imaging.Resize(spanker, imageSize, imageSize, imaging.Lanczos)
+	spanked = imaging.Resize(spanked, imageSize, imageSize, imaging.Lanczos)
+
+	dst := imaging.New(2000, 1333, color.NRGBA{0, 0, 0, 0})
+	dst = imaging.Paste(dst, srcImage, image.Pt(0, 0))
+	dst = imaging.Paste(dst, spanked, image.Pt(1470, 660))
+	dst = imaging.Paste(dst, spanker, image.Pt(970, 0))
+	err := imaging.Save(dst, tmpName)
+	if err != nil{
+		log.Println(err.Error())
+	}
+	file, _ := os.Open(tmpName)
+
+	data.session.ChannelFileSend(data.channel, "spank.jpg", file)
+	os.Remove(tmpName)
+}
+
 func (data CommandData) checkCommand(){
 	var start = strings.Split(data.message.Content, " ")[0]
 	if strings.Contains(start, "\n") {
@@ -306,6 +394,12 @@ func (data CommandData) checkCommand(){
 		break
 	case data.prefix+"poll":
 		data.poll()
+		break
+	case data.prefix+"help":
+		data.help()
+		break
+	case data.prefix+"spank":
+		data.spank()
 		break
 	}
 }
