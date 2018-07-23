@@ -402,4 +402,5 @@ func (data CommandData) checkCommand(){
 		data.spank()
 		break
 	}
+
 }
