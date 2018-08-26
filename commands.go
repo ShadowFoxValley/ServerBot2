@@ -121,9 +121,9 @@ func (data CommandData) top() {
 		}
 
 		var tmp = &discordgo.MessageEmbedField{
-			fmt.Sprintf("%d - %s", counter, username),
-			strconv.Itoa(points),
-			inline,
+			Name:   fmt.Sprintf("%d - %s", counter, username),
+			Value:  strconv.Itoa(points),
+			Inline: inline,
 		}
 		fields = append(fields, tmp)
 	}
@@ -156,19 +156,19 @@ func (data CommandData) stats() {
 	//log.Print("Вызван статус")
 	var fields = []*discordgo.MessageEmbedField{
 		{
-			"Баланс",
-			fmt.Sprintf("%d DGC", points),
-			true,
+			Name:   "Баланс",
+			Value:  fmt.Sprintf("%d DGC", points),
+			Inline: true,
 		},
 		{
-			"Место",
-			fmt.Sprintf("%d место среди пользователей", counter),
-			true,
+			Name:   "Место",
+			Value:  fmt.Sprintf("%d место среди пользователей", counter),
+			Inline: true,
 		},
 		{
-			"Статус",
-			userStatus[data.author.ID],
-			false,
+			Name:   "Статус",
+			Value:  userStatus[data.author.ID],
+			Inline: false,
 		},
 	}
 
@@ -229,9 +229,9 @@ func checkAddInfo(data string) (*discordgo.MessageEmbedField, bool, int) {
 				return &discordgo.MessageEmbedField{}, false, len(questions)
 			}
 			var additionalInformation = &discordgo.MessageEmbedField{
-				"Информация",
-				strings.Join(questions[separator:], "\n"),
-				false,
+				Name:   "Информация",
+				Value:  strings.Join(questions[separator:], "\n"),
+				Inline: false,
 			}
 			return additionalInformation, true, separator
 		}
@@ -281,9 +281,9 @@ func (data CommandData) poll() {
 
 		fields = append(fields, additionalInfo)
 		fields = append(fields, &discordgo.MessageEmbedField{
-			"Варианты",
-			variants,
-			false,
+			Name:   "Варианты",
+			Value:  variants,
+			Inline: false,
 		})
 		quaue[pollId] = separator
 	} else {
@@ -297,9 +297,9 @@ func (data CommandData) poll() {
 		}
 
 		fields = append(fields, &discordgo.MessageEmbedField{
-			"Варианты",
-			variants,
-			false,
+			Name:   "Варианты",
+			Value:  variants,
+			Inline: false,
 		})
 		quaue[pollId] = separator
 	}
@@ -317,24 +317,24 @@ func (data CommandData) poll() {
 func (data CommandData) help() {
 	var fields = []*discordgo.MessageEmbedField{
 		{
-			"Info",
-			fmt.Sprintf("**%[1]shelp** - получить информацию о командах\n**%[1]sstats** - информация об аккаунте\n**%[1]stop** - топ пользователей\n ", data.prefix),
-			true,
+			Name:   "Info",
+			Value:  fmt.Sprintf("**%[1]shelp** - получить информацию о командах\n**%[1]sstats** - информация об аккаунте\n**%[1]stop** - топ пользователей\n ", data.prefix),
+			Inline: true,
 		},
 		{
-			"Misc",
-			fmt.Sprintf("**%[1]sroll** - u see me rollin\n ", data.prefix),
-			true,
+			Name:   "Misc",
+			Value:  fmt.Sprintf("**%[1]sroll** - u see me rollin\n ", data.prefix),
+			Inline: true,
 		},
 		{
-			"Fun",
-			fmt.Sprintf("**%[1]sspank** - :slap: :slap: :slap:\n**%[1]srespect [person]** - PRESS 🇫 TO PAY RESPECT", data.prefix),
-			true,
+			Name:   "Fun",
+			Value:  fmt.Sprintf("**%[1]sspank** - :slap: :slap: :slap:\n**%[1]srespect [person]** - PRESS 🇫 TO PAY RESPECT", data.prefix),
+			Inline: true,
 		},
 		{
-			"Tools",
-			fmt.Sprintf("**%[1]spoll** - создать опрос\n ", data.prefix),
-			true,
+			Name:   "Tools",
+			Value:  fmt.Sprintf("**%[1]spoll** - создать опрос\n ", data.prefix),
+			Inline: true,
 		},
 	}
 
@@ -396,10 +396,12 @@ func (data CommandData) spank() {
 func (data CommandData) respect() {
 	args := strings.Split(data.message.Content, " ")
 	var title string
-	if cap(args) < 2 {
-		title = "Pay respect for " + data.message.Author.Username
-	} else {
+	if cap(data.message.Mentions) > 0 {
+		title = "Pay respect for " + data.message.Mentions[0].Username
+	} else if cap(args) > 1 {
 		title = "Pay respect for " + strings.Join(args[1:], " ")
+	} else {
+		title = "Pay respect for " + data.message.Author.Username
 	}
 	embed := &discordgo.MessageEmbed{
 		Author: &discordgo.MessageEmbedAuthor{
@@ -407,6 +409,7 @@ func (data CommandData) respect() {
 			Name:    data.message.Author.Username,
 		},
 		Title: title,
+		Color: 0x00ff00,
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:   "Payed respect",

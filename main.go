@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"database/sql"
 	"log"
@@ -112,11 +113,19 @@ func reactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 			return
 		}
 		if strings.Contains(elem.Embeds[0].Fields[0].Value, user.Username) {
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				err := s.MessageReactionRemove(r.ChannelID, r.MessageID, r.Emoji.Name, r.UserID)
+				if err != nil {
+					log.Println(err, r.MessageID, elem.ID)
+				}
+			}()
 			return
 		}
 		embed := &discordgo.MessageEmbed{
 			Title:  elem.Embeds[0].Title,
 			Author: elem.Embeds[0].Author,
+			Color:  elem.Embeds[0].Color,
 			Fields: []*discordgo.MessageEmbedField{
 				{
 					Name:   "Payed respect",
@@ -131,6 +140,13 @@ func reactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 			return
 		}
 		trackReactions[r.MessageID] = message
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			err := s.MessageReactionRemove(r.ChannelID, r.MessageID, r.Emoji.Name, r.UserID)
+			if err != nil {
+				log.Println(err, r.MessageID, elem.ID)
+			}
+		}()
 	}
 
 }
