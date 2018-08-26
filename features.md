@@ -1,0 +1,1 @@
+1. Color:0x0 in embed sets default discord color
