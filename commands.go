@@ -429,6 +429,9 @@ func (data CommandData) respect() {
 	trackReactions[message.ID] = message
 	time.AfterFunc(time.Duration(10)*time.Minute, func() {
 		data.session.MessageReactionsRemoveAll(trackReactions[message.ID].ChannelID, trackReactions[message.ID].ID)
+		// Выставляем дефолтный цвет для эмбеда
+		trackReactions[message.ID].Embeds[0].Color = 0x0
+		data.session.ChannelMessageEditEmbed(message.ChannelID, message.ID, trackReactions[message.ID].Embeds[0])
 		delete(trackReactions, message.ID)
 	})
 }
