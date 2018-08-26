@@ -1,30 +1,30 @@
 package main
 
 import (
-	"github.com/bwmarrin/discordgo"
-	"strings"
-	"strconv"
-	"math/rand"
-	"time"
-	"log"
 	"fmt"
-	"github.com/thanhpk/randstr"
-	"github.com/fogleman/gg"
-	"github.com/disintegration/imaging"
-	"image/color"
 	"image"
+	"image/color"
+	"log"
+	"math/rand"
 	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/disintegration/imaging"
+	"github.com/fogleman/gg"
+	"github.com/thanhpk/randstr"
 )
 
 type CommandData struct {
 	session *discordgo.Session
 	message *discordgo.MessageCreate
-	author *discordgo.User
+	author  *discordgo.User
 	channel string
 	prefix  string
-	guild *discordgo.Guild
+	guild   *discordgo.Guild
 }
-
 
 var (
 	empojiPoll = []string{
@@ -47,7 +47,9 @@ const (
 	imageSize = 400
 )
 
-func (data CommandData) LoadData(session *discordgo.Session, message *discordgo.MessageCreate){
+var trackReactions = make(map[string]*discordgo.Message)
+
+func (data CommandData) LoadData(session *discordgo.Session, message *discordgo.MessageCreate) {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	data.session = session
@@ -64,41 +66,45 @@ func (data CommandData) LoadData(session *discordgo.Session, message *discordgo.
 	data.checkCommand()
 }
 
-func (data CommandData) startswith(forcheck string)(bool){
+func (data CommandData) startswith(forcheck string) bool {
 	var start = strings.Split(data.message.Content, " ")[0]
-	if start ==  forcheck {
+	if start == forcheck {
 		return true
 	} else {
 		return false
 	}
 }
 
-func (data CommandData) roll(){
+func (data CommandData) roll() {
 	var elements = strings.Split(data.message.Content, " ")
 	var first, second, result, elemLen = 0, 100, 0, len(elements)
 
-	if elemLen == 2{
+	if elemLen == 2 {
 		second, _ = strconv.Atoi(elements[1])
-	} else if elemLen == 3{
+	} else if elemLen == 3 {
 		first, _ = strconv.Atoi(elements[1])
 		second, _ = strconv.Atoi(elements[2])
 	}
 
-	if first > second{ first, second = second, first }
+	if first > second {
+		first, second = second, first
+	}
 
-	if first == second{
+	if first == second {
 		result = first
 	} else {
 		result = rand.Intn(second-first) + first
 	}
 
-	data.session.ChannelMessageSend(data.channel, "Result: " + strconv.Itoa(result))
+	data.session.ChannelMessageSend(data.channel, "Result: "+strconv.Itoa(result))
 }
 
-func (data CommandData) top(){
+func (data CommandData) top() {
 	var res, QueryError = configuration.database.Query("SELECT username, points FROM users ORDER BY points DESC LIMIT 10")
 
-	if QueryError!=nil{log.Print(QueryError.Error())}
+	if QueryError != nil {
+		log.Print(QueryError.Error())
+	}
 
 	var username string
 	var points int
@@ -107,10 +113,12 @@ func (data CommandData) top(){
 
 	var fields []*discordgo.MessageEmbedField
 
-	for res.Next(){
+	for res.Next() {
 		res.Scan(&username, &points)
-		counter+=1
-		if counter > 1{inline=true}
+		counter += 1
+		if counter > 1 {
+			inline = true
+		}
 
 		var tmp = &discordgo.MessageEmbedField{
 			fmt.Sprintf("%d - %s", counter, username),
@@ -121,25 +129,29 @@ func (data CommandData) top(){
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
-		Color: 0x00ff00,
+		Author: &discordgo.MessageEmbedAuthor{Name: data.author.Username},
+		Color:  0x00ff00,
 		Fields: fields,
 	}
 	data.session.ChannelMessageSendEmbed(data.channel, embed)
 }
 
-func (data CommandData) stats(){
+func (data CommandData) stats() {
 	var res, QueryError = configuration.database.Query("SELECT discord_id, points FROM users ORDER BY points DESC")
-	if QueryError!=nil{log.Print(QueryError.Error())}
+	if QueryError != nil {
+		log.Print(QueryError.Error())
+	}
 
 	var points int
 	var id string
 	var counter = 1
 
-	for res.Next(){
+	for res.Next() {
 		res.Scan(&id, &points)
-		if id == data.author.ID{break}
-		counter+=1
+		if id == data.author.ID {
+			break
+		}
+		counter += 1
 	}
 	//log.Print("Вызван статус")
 	var fields = []*discordgo.MessageEmbedField{
@@ -161,28 +173,33 @@ func (data CommandData) stats(){
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
-		Color: 0x00ff00,
+		Author: &discordgo.MessageEmbedAuthor{Name: data.author.Username},
+		Color:  0x00ff00,
 		Fields: fields,
 	}
 	data.session.ChannelMessageSendEmbed(data.channel, embed)
 }
 
-func (data CommandData) throw()  {
+func (data CommandData) throw() {
 	var target = data.message.Mentions
-	if len(target) == 0{return
+	if len(target) == 0 {
+		return
 	}
 	var targetAllInfo, _ = data.session.GuildMember(data.guild.ID, target[0].ID)
 	var authorAllInfo, _ = data.session.GuildMember(data.guild.ID, data.author.ID)
 	var targetNick, authorNick = targetAllInfo.Nick, authorAllInfo.Nick
 
-	if targetNick == "" { targetNick = target[0].Username }
-	if authorNick == "" { authorNick = data.author.Username }
+	if targetNick == "" {
+		targetNick = target[0].Username
+	}
+	if authorNick == "" {
+		authorNick = data.author.Username
+	}
 
 	var allEmoji = data.guild.Emojis
 	var staticEmoji []*discordgo.Emoji
 	for emoji := range allEmoji {
-		if allEmoji[emoji].Animated == false{
+		if allEmoji[emoji].Animated == false {
 			staticEmoji = append(staticEmoji, allEmoji[emoji])
 		}
 	}
@@ -192,19 +209,19 @@ func (data CommandData) throw()  {
 
 	var messageText = fmt.Sprintf("**%s** threw %s at **%s**", authorNick, emojiString, targetNick)
 
-	if strings.Contains(messageText, "@everyone") || strings.Contains(messageText, "@here"){
+	if strings.Contains(messageText, "@everyone") || strings.Contains(messageText, "@here") {
 		return
 	}
 
 	data.session.ChannelMessageSend(data.channel, messageText)
 }
 
-func checkAddInfo(data string) (*discordgo.MessageEmbedField, bool, int){
+func checkAddInfo(data string) (*discordgo.MessageEmbedField, bool, int) {
 	var messageData = strings.Split(data, "\n")
 	var counterAddInfo = strings.Split(messageData[0], " ")
 	var questions = messageData[1:]
 
-	if len(counterAddInfo) == 2{
+	if len(counterAddInfo) == 2 {
 
 		if separator, err := strconv.Atoi(counterAddInfo[1]); err == nil {
 			//fmt.Printf("%q looks like a number.\n", v)
@@ -251,7 +268,7 @@ func (data CommandData) poll() {
 	}
 
 	if additionalInfo, success, separator := checkAddInfo(data.message.Content); success == true {
-		for i:=range questions{
+		for i := range questions {
 			if i == separator {
 				break
 			}
@@ -271,7 +288,7 @@ func (data CommandData) poll() {
 		quaue[pollId] = separator
 	} else {
 
-		for i:=range questions{
+		for i := range questions {
 			variants += fmt.Sprintf("%d) %s\n", i, questions[i])
 		}
 		if len(questions) > 10 {
@@ -288,16 +305,16 @@ func (data CommandData) poll() {
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
-		Color: 0x00ff00,
-		Fields: fields,
-		Description:pollId,
+		Author:      &discordgo.MessageEmbedAuthor{Name: data.author.Username},
+		Color:       0x00ff00,
+		Fields:      fields,
+		Description: pollId,
 	}
 	data.session.ChannelMessageSendEmbed(data.channel, embed)
 	data.session.ChannelMessageDelete(data.message.ChannelID, data.message.ID)
 }
 
-func (data CommandData) help(){
+func (data CommandData) help() {
 	var fields = []*discordgo.MessageEmbedField{
 		{
 			"Info",
@@ -311,7 +328,7 @@ func (data CommandData) help(){
 		},
 		{
 			"Fun",
-			fmt.Sprintf("**%[1]sspank** - :slap: :slap: :slap:\n ", data.prefix),
+			fmt.Sprintf("**%[1]sspank** - :slap: :slap: :slap:\n**%[1]srespect [person]** - PRESS 🇫 TO PAY RESPECT", data.prefix),
 			true,
 		},
 		{
@@ -322,23 +339,25 @@ func (data CommandData) help(){
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Author: &discordgo.MessageEmbedAuthor{Name:data.author.Username},
-		Color: 0x00ff00,
+		Author: &discordgo.MessageEmbedAuthor{Name: data.author.Username},
+		Color:  0x00ff00,
 		Fields: fields,
 	}
 	data.session.ChannelMessageSendEmbed(data.channel, embed)
 }
 
-func (data CommandData) spank(){
+func (data CommandData) spank() {
 	var res, _ = configuration.database.Query("SELECT discord_id, points FROM users ORDER BY points DESC")
 
 	var points int
 	var id string
 	var counter = 1
-	for res.Next(){
+	for res.Next() {
 		res.Scan(&id, &points)
-		if id == data.author.ID{break}
-		counter+=1
+		if id == data.author.ID {
+			break
+		}
+		counter += 1
 	}
 	if counter > 30 {
 		data.session.ChannelMessageSend(data.channel, fmt.Sprintf("Только топ-30 могут использовать spank. Проверить место - **%sstats**", data.prefix))
@@ -365,7 +384,7 @@ func (data CommandData) spank(){
 	dst = imaging.Paste(dst, spanked, image.Pt(1470, 660))
 	dst = imaging.Paste(dst, spanker, image.Pt(970, 0))
 	err := imaging.Save(dst, tmpName)
-	if err != nil{
+	if err != nil {
 		log.Println(err.Error())
 	}
 	file, _ := os.Open(tmpName)
@@ -374,32 +393,72 @@ func (data CommandData) spank(){
 	os.Remove(tmpName)
 }
 
-func (data CommandData) checkCommand(){
+func (data CommandData) respect() {
+	args := strings.Split(data.message.Content, " ")
+	var title string
+	if cap(args) < 2 {
+		title = "Pay respect for " + data.message.Author.Username
+	} else {
+		title = "Pay respect for " + strings.Join(args[1:], " ")
+	}
+	embed := &discordgo.MessageEmbed{
+		Author: &discordgo.MessageEmbedAuthor{
+			IconURL: data.message.Author.AvatarURL("50x50"),
+			Name:    data.message.Author.Username,
+		},
+		Title: title,
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Payed respect",
+				Value:  data.session.State.User.Username,
+				Inline: false,
+			},
+		},
+	}
+	message, err := data.session.ChannelMessageSendEmbed(data.message.ChannelID, embed)
+	if err != nil {
+		log.Println(err)
+	}
+	// Добавляем эмоут на сообщение
+	go func(m *discordgo.Message, s *discordgo.Session) {
+		s.MessageReactionAdd(m.ChannelID, m.ID, "🇫")
+	}(message, data.session)
+	trackReactions[message.ID] = message
+	time.AfterFunc(time.Duration(10)*time.Minute, func() {
+		data.session.MessageReactionsRemoveAll(trackReactions[message.ID].ChannelID, trackReactions[message.ID].ID)
+		delete(trackReactions, message.ID)
+	})
+}
+
+func (data CommandData) checkCommand() {
 	var start = strings.Split(data.message.Content, " ")[0]
 	if strings.Contains(start, "\n") {
 		start = strings.Split(data.message.Content, "\n")[0]
 	}
 	switch start {
-	case data.prefix+"roll":
+	case data.prefix + "roll":
 		data.roll()
 		break
-	case data.prefix+"top":
+	case data.prefix + "top":
 		data.top()
 		break
-	case data.prefix+"stats":
+	case data.prefix + "stats":
 		data.stats()
 		break
-	case data.prefix+"throw":
+	case data.prefix + "throw":
 		data.throw()
 		break
-	case data.prefix+"poll":
+	case data.prefix + "poll":
 		data.poll()
 		break
-	case data.prefix+"help":
+	case data.prefix + "help":
 		data.help()
 		break
-	case data.prefix+"spank":
+	case data.prefix + "spank":
 		data.spank()
+		break
+	case data.prefix + "respect":
+		data.respect()
 		break
 	}
 
