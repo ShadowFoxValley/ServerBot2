@@ -148,5 +148,64 @@ func reactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 			}
 		}()
 	}
+	
+	else if elem, ok := trackReactions[r.MessageID]; ok && r.Emoji.Name == "♿" {
+		
+		user, err := s.User(r.UserID)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		if strings.Contains(elem.Embeds[0].Fields[0].Value, user.Username) {
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				err := s.MessageReactionRemove(r.ChannelID, r.MessageID, r.Emoji.Name, r.UserID)
+				if err != nil {
+					log.Println(err, r.MessageID, elem.ID)
+				}
+			}()
+			return
+		}
+		
+		//BALANCE CHECK
+		points, err := configuration.database.Query("SELECT points FROM users WHERE discord_id=?", r.UserID)
+		if err != nil {
+			log.Println(err.Error())
+		}
+		var userPoints int
+		points.Next()
+		points.Scan(&userPoints)
+		if userPoints < 5 {
+			return
+		} else {
+			configuration.database.Query("UPDATE users SET points = `points`-5 WHERE discord_id=?", r.UserID)
+		}
+		
+		embed := &discordgo.MessageEmbed{
+			Title:  elem.Embeds[0].Title,
+			Author: elem.Embeds[0].Author,
+			Color:  elem.Embeds[0].Color,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "Скинулись на коляску",
+					Value:  elem.Embeds[0].Fields[0].Value + "\n" + user.Username,
+					Inline: false,
+				},
+			},
+		}
+		message, err := s.ChannelMessageEditEmbed(r.ChannelID, r.MessageID, embed)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		trackReactions[r.MessageID] = message
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			err := s.MessageReactionRemove(r.ChannelID, r.MessageID, r.Emoji.Name, r.UserID)
+			if err != nil {
+				log.Println(err, r.MessageID, elem.ID)
+			}
+		}()
+	}
 
 }

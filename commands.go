@@ -436,6 +436,63 @@ func (data CommandData) respect() {
 	})
 }
 
+func (data CommandData) wheelchair() {
+	args := strings.Split(data.message.Content, " ")
+	var title string
+	
+	//BALANCE CHECK
+	points, err := configuration.database.Query("SELECT points FROM users WHERE discord_id=?", data.message.Author.ID)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	var userPoints int
+	points.Next()
+	points.Scan(&userPoints)
+	if userPoints < 5 {
+		data.session.ChannelMessageSend(data.channel, "Cначала денег накопи")
+		return
+	} else {
+		configuration.database.Query("UPDATE users SET points = `points`-5 WHERE discord_id=?", data.message.Author.ID)
+	}
+	
+	if cap(data.message.Mentions) > 0 {
+		title = "Скидываемся на коляску для  " + data.message.Mentions[0].Username
+	} else {
+		title = "Скиньтесь мне на коляску " + data.message.Author.Username
+	}
+	embed := &discordgo.MessageEmbed{
+		Author: &discordgo.MessageEmbedAuthor{
+			IconURL: data.message.Author.AvatarURL("50x50"),
+			Name:    data.message.Author.Username,
+		},
+		Title: title,
+		Color: 0x00ff00,
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   "Cкинулись",
+				Value:  data.session.State.User.Username,
+				Inline: false,
+			},
+		},
+	}
+	message, err := data.session.ChannelMessageSendEmbed(data.message.ChannelID, embed)
+	if err != nil {
+		log.Println(err)
+	}
+	// Добавляем эмоут на сообщение
+	go func(m *discordgo.Message, s *discordgo.Session) {
+		s.MessageReactionAdd(m.ChannelID, m.ID, "♿")
+	}(message, data.session)
+	trackReactions[message.ID] = message
+	time.AfterFunc(time.Duration(10)*time.Minute, func() {
+		data.session.MessageReactionsRemoveAll(trackReactions[message.ID].ChannelID, trackReactions[message.ID].ID)
+		// Выставляем дефолтный цвет для эмбеда
+		trackReactions[message.ID].Embeds[0].Color = 0x0
+		data.session.ChannelMessageEditEmbed(message.ChannelID, message.ID, trackReactions[message.ID].Embeds[0])
+		delete(trackReactions, message.ID)
+	})
+}
+
 func (data CommandData) checkCommand() {
 	var start = strings.Split(data.message.Content, " ")[0]
 	if strings.Contains(start, "\n") {
@@ -465,6 +522,9 @@ func (data CommandData) checkCommand() {
 		break
 	case data.prefix + "respect":
 		data.respect()
+		break
+	case data.prefix + "wheelchair":
+		data.wheelchair()
 		break
 	}
 
