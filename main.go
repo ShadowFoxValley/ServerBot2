@@ -149,20 +149,7 @@ func reactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 		}()
 	}
 	
-	else if elem2, ok2 := trackReactions[r.MessageID]; ok2 && r.Emoji.Name == "♿" {
-		//BALANCE CHECK
-		points, err := configuration.database.Query("SELECT points FROM users WHERE discord_id=?", r.UserID)
-		if err != nil {
-			log.Println(err.Error())
-		}
-		var userPoints int
-		points.Next()
-		points.Scan(&userPoints)
-		if userPoints < 5 {
-			return
-		} else {
-			configuration.database.Query("UPDATE users SET points = `points`-5 WHERE discord_id=?", r.UserID)
-		}
+	else if elem, ok := trackReactions[r.MessageID]; ok && r.Emoji.Name == "♿" {
 		
 		user, err := s.User(r.UserID)
 		if err != nil {
@@ -179,6 +166,21 @@ func reactionAdd(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
 			}()
 			return
 		}
+		
+		//BALANCE CHECK
+		points, err := configuration.database.Query("SELECT points FROM users WHERE discord_id=?", r.UserID)
+		if err != nil {
+			log.Println(err.Error())
+		}
+		var userPoints int
+		points.Next()
+		points.Scan(&userPoints)
+		if userPoints < 5 {
+			return
+		} else {
+			configuration.database.Query("UPDATE users SET points = `points`-5 WHERE discord_id=?", r.UserID)
+		}
+		
 		embed := &discordgo.MessageEmbed{
 			Title:  elem.Embeds[0].Title,
 			Author: elem.Embeds[0].Author,
